@@ -634,12 +634,42 @@ class OpenID4VPTests: XCTestCase {
         }
     }
     
-//    func testSendVPResponseToVerifierThrowsErrorWhenResponseUriIsNotPopulated() async {
-//        let openIdVP = OpenID4VP(traceabilityId: "AXESWSAW123", networkManager: mockNetworkManager, nonceProvider: MockNonceProvider())
-//        
-//        await XCTAssertAsyncThrowsError(try await openIdVP.sendVPResponseToVerifier(vpTokenSigningResults: [VPTokenSigningResult(id: "uuid1", signedData: "signed".data(using: .utf8) ?? Data())])) { error in
-//            XCTAssertEqual(error.localizedDescription, "Response URI is not available to send any response to Verifier", "error_dispatch_failure")
-//        }
-//    }
+    func testSendVPResponseToVerifierThrowsInsteadOfCrashingWhenVerifierIsNotAuthenticated() async {
+        let openIdVP = OpenID4VP(traceabilityId: "AXESWSAW123", networkManager: mockNetworkManager, nonceProvider: MockNonceProvider())
+
+        await XCTAssertAsyncThrowsError(try await openIdVP.sendVPResponseToVerifier(vpTokenSigningResults: [VPTokenSigningResult(id: "uuid1", signedData: "signed".data(using: .utf8) ?? Data())])) { error in
+            assertOpenID4VPException(
+                error,
+                expectedMessage: "Authorization request is not available. Call authenticateVerifier before constructing or sending the VP response.",
+                expectedCode: OpenID4VPErrorCodes.invalidRequest
+            )
+        }
+    }
+
+    func testConstructUnsignedVPTokenThrowsInsteadOfCrashingWhenVerifierIsNotAuthenticated() async {
+        let openIdVP = OpenID4VP(traceabilityId: "AXESWSAW123", networkManager: mockNetworkManager, nonceProvider: MockNonceProvider())
+
+        await XCTAssertAsyncThrowsError(
+            try await openIdVP.constructUnsignedVPToken(
+                selectedCredentials: ["input_1": [Credential(format: .ldp_vc, data: AnyCodable(ldpVC()), credentialId: "input_1")]]
+            )
+        ) { error in
+            assertOpenID4VPException(
+                error,
+                expectedMessage: "Authorization request is not available. Call authenticateVerifier before constructing or sending the VP response.",
+                expectedCode: OpenID4VPErrorCodes.invalidRequest
+            )
+        }
+    }
+
+    func testConstructVPResponseReturnsErrorInfoInsteadOfCrashingWhenVerifierIsNotAuthenticated() {
+        let openIdVP = OpenID4VP(traceabilityId: "AXESWSAW123", networkManager: mockNetworkManager, nonceProvider: MockNonceProvider())
+
+        let result = openIdVP.constructVPResponse(
+            vpTokenSigningResults: [VPTokenSigningResult(id: "uuid1", signedData: "signed".data(using: .utf8) ?? Data())]
+        )
+
+        XCTAssertEqual(result["error"] as? String, "invalid_request")
+    }
 }
 

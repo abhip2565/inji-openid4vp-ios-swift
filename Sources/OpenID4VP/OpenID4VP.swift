@@ -104,7 +104,7 @@ public class OpenID4VP {
         do {
             return try await authorizationResponseHandler.constructUnsignedVPToken(
                 selectedCredentials: selectedCredentials,
-                authorizationRequest: authorizationRequest,
+                authorizationRequest: try requireAuthorizationRequest(),
                 walletNonce: walletNonce
             )
         } catch {
@@ -117,7 +117,7 @@ public class OpenID4VP {
         do {
             return try authorizationResponseHandler.constructVPResponse(
                 signingResults: vpTokenSigningResults,
-                authorizationRequest: authorizationRequest,
+                authorizationRequest: try requireAuthorizationRequest(),
                 dispatchInfo: responseDispatchInfo
             )
         } catch let exception {
@@ -130,7 +130,7 @@ public class OpenID4VP {
     ) async throws -> VerifierResponse {
         do {
             return try await authorizationResponseHandler.constructAndSendAuthorizationResponseToVerifier(
-                authorizationRequest: authorizationRequest,
+                authorizationRequest: try requireAuthorizationRequest(),
                 vpTokenSigningResults: vpTokenSigningResults,
                 dispatchInfo: responseDispatchInfo
             )
@@ -162,6 +162,17 @@ public class OpenID4VP {
         } catch {
             OpenID4VPException.error(error, className: className)
         }
+    }
+
+    private func requireAuthorizationRequest() throws -> AuthorizationRequest {
+        guard let authorizationRequest else {
+            throw InvalidData(
+                message: "Authorization request is not available. Call authenticateVerifier before constructing or sending the VP response.",
+                className: className,
+                notifyVerifier: false
+            )
+        }
+        return authorizationRequest
     }
 }
  
