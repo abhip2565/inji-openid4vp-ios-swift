@@ -86,9 +86,16 @@ struct DirectPostJwtResponseModeHandler : ResponseModeBasedHandler {
             throw InvalidData(message: "Algorithm must be specified for the encryption key in jwks", className: className)
         }
         
+        guard let keyEncryptionAlg = EncryptionAlgorithm(rawValue: verifierPublicKeyAlgorithm) else {
+            throw InvalidData(message: "Unsupported key encryption algorithm: \(verifierPublicKeyAlgorithm)", className: className)
+        }
+        guard let contentEncryptionAlg = EncryptionMethod(rawValue: contentEncryptionAlgorithm) else {
+            throw InvalidData(message: "Unsupported content encryption algorithm: \(contentEncryptionAlgorithm)", className: className)
+        }
+
         return ResponseEncryptionSpecification(
-            keyEncryptionAlg: EncryptionAlgorithm(rawValue: verifierPublicKeyAlgorithm)!,
-            contentEncryptionAlg: EncryptionMethod(rawValue: contentEncryptionAlgorithm)!,
+            keyEncryptionAlg: keyEncryptionAlg,
+            contentEncryptionAlg: contentEncryptionAlg,
             verifierPublicKey: encryptionKey
         )
     }
