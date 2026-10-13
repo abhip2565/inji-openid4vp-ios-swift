@@ -667,4 +667,70 @@ final class DCQLEvaluatorTests: XCTestCase {
         XCTAssertEqual(result.queryMatches["q1"]?.failureReason, DCQLEvaluationErrorCodes.noClaimsSetOptionSatisfied.rawValue)
         XCTAssertNil(result.queryMatches["q1"]?.matchingCredentials)
     }
+    private func evaluateWildcardClaim(path: String, values: String, claims: [String: Any]) async throws -> MatchingCredentialsResult {
+        let query = try dcqlQuery("""
+        {"credentials":[{"id":"q1","format":"ldp_vc","meta":{},"require_cryptographic_holder_binding":false,"claims":[{"path":\(path),"values":\(values)}]}]}
+        """)
+        let credential = Credential(format: .ldp_vc, data: AnyCodable(claims), credentialId: "c1")
+        return try await evaluator.evaluate(query, inputCredentials: [credential])
+    }
+
+    func testMatchesAnyWildcardSelectedValue() async throws {
+        let claims: [String: Any] = ["credentialSubject": ["gender": [
+            ["language": "eng", "value": "FEM"],
+            ["language": "fra", "value": "MLE"]
+        ]]]
+        let result = try await evaluateWildcardClaim(path: #"["credentialSubject","gender",null,"value"]"#, values: #"["MLE"]"#, claims: claims)
+        XCTAssertTrue(result.success)
+    }
+
+    func testRejectsWildcardValuesWhenNoElementMatches() async throws {
+        let result = try await evaluateWildcardClaim(path: #"["nationalities",null]"#, values: #"["GB"]"#, claims: ["nationalities": ["DE", "FR"]])
+        XCTAssertFalse(result.success)
+        XCTAssertEqual(result.queryMatches["q1"]?.failedClaims?.first?.reason, DCQLEvaluationErrorCodes.claimValueMismatch.rawValue)
+    }
+
+    func testDoesNotMatchArrayWithoutWildcardAgainstScalar() async throws {
+        let result = try await evaluateWildcardClaim(path: #"["nationalities"]"#, values: #"["DE"]"#, claims: ["nationalities": ["DE", "FR"]])
+        XCTAssertFalse(result.success)
+        XCTAssertEqual(result.queryMatches["q1"]?.failedClaims?.first?.reason, DCQLEvaluationErrorCodes.claimValueMismatch.rawValue)
+    }
+
+    func testMatchesTerminalWildcardValues() async throws {
+        let result = try await evaluateWildcardClaim(path: #"["nationalities",null]"#, values: #"["DE"]"#, claims: ["nationalities": ["FR", "DE"]])
+        XCTAssertTrue(result.success)
+    }
+
+    func testMatchesNestedWildcardValues() async throws {
+        let claims: [String: Any] = ["degrees": [
+            ["subjects": [["name": "Math"], ["name": "Physics"]]],
+            ["subjects": [["name": "Chemistry"]]]
+        ]]
+        let result = try await evaluateWildcardClaim(path: #"["degrees",null,"subjects",null,"name"]"#, values: #"["Physics"]"#, claims: claims)
+        XCTAssertTrue(result.success)
+    }
+
+    func testWildcardMatchesIntegerAndBooleanValues() async throws {
+        let integer = try await evaluateWildcardClaim(path: #"["scores",null]"#, values: "[42]", claims: ["scores": [1, 42]])
+        XCTAssertTrue(integer.success)
+        let boolean = try await evaluateWildcardClaim(path: #"["flags",null]"#, values: "[true]", claims: ["flags": [false, true]])
+        XCTAssertTrue(boolean.success)
+    }
+
+    func testEmptyWildcardClaimIsUnavailable() async throws {
+        let result = try await evaluateWildcardClaim(path: #"["nationalities",null]"#, values: #"["DE"]"#, claims: ["nationalities": [] as [Any]])
+        XCTAssertFalse(result.success)
+        XCTAssertEqual(result.queryMatches["q1"]?.failedClaims?.first?.reason, DCQLEvaluationErrorCodes.claimUnavailable.rawValue)
+    }
+
+    func testWildcardKeepsLiteralNilStrings() async throws {
+        let result = try await evaluateWildcardClaim(path: #"["labels",null]"#, values: #"["nil"]"#, claims: ["labels": ["nil", "other"]])
+        XCTAssertTrue(result.success)
+    }
+
+    func testWildcardSkipsNullClaimValues() async throws {
+        let result = try await evaluateWildcardClaim(path: #"["labels",null]"#, values: #"["DE"]"#, claims: ["labels": [NSNull(), "DE"] as [Any]])
+        XCTAssertTrue(result.success)
+    }
+
 }

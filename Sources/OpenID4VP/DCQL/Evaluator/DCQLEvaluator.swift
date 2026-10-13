@@ -209,7 +209,7 @@ internal struct DcqlEvaluator {
             }
 
             if let expectedClaimValues = claimQuery.values {
-                if !matchesExpectedValues(resolved, expectedValues: expectedClaimValues) {
+                if !matchesExpectedValues(resolved, expectedValues: expectedClaimValues, pathHasWildcard: claimQuery.path.contains { isNullPathPointer($0.value) }) {
                     failedClaims.append(ClaimFailure(claim: claimQuery, reason: .claimValueMismatch))
                     continue
                 }
@@ -221,22 +221,31 @@ internal struct DcqlEvaluator {
         return (matchingClaims, failedClaims)
     }
     
-    private func matchesExpectedValues(_ claimValue: Any, expectedValues: [ClaimValue]) -> Bool {
-        return expectedValues.contains { expected in
-            switch expected {
-            case .string(let v):
-                return (claimValue as? String) == v
-            case .int(let v):
-                // Handle potential type mismatch if claimValue is parsed as Double from JSON
-                if let actualInt = claimValue as? Int { return actualInt == v }
-                if let actualDouble = claimValue as? Double { return Int(actualDouble) == v }
-                return false
-            case .bool(let v):
-                return (claimValue as? Bool) == v
+    private func matchesExpectedValues(_ claimValue: Any, expectedValues: [ClaimValue], pathHasWildcard: Bool) -> Bool {
+        let selectedValues: [Any]
+        if pathHasWildcard, let values = claimValue as? [Any] {
+            selectedValues = values.filter { !isNullPathPointer($0) }
+        } else {
+            selectedValues = [claimValue]
+        }
+
+        return selectedValues.contains { selectedValue in
+            expectedValues.contains { expected in
+                switch expected {
+                case .string(let v):
+                    return (selectedValue as? String) == v
+                case .int(let v):
+                    // Handle potential type mismatch if the value is parsed as Double from JSON
+                    if let actualInt = selectedValue as? Int { return actualInt == v }
+                    if let actualDouble = selectedValue as? Double { return Int(actualDouble) == v }
+                    return false
+                case .bool(let v):
+                    return (selectedValue as? Bool) == v
+                }
             }
         }
     }
-    
+
     private func matchesMeta(_ meta: [String: AnyCodable], walletCredential: any TaggedCredential) -> Bool {
         if(meta.isEmpty) {
             return true
