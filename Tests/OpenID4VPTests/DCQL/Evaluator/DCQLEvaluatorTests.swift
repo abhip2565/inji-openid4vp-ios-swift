@@ -733,4 +733,21 @@ final class DCQLEvaluatorTests: XCTestCase {
         XCTAssertTrue(result.success)
     }
 
+    func testMatchesWholeDoubleClaimAgainstIntegerValue() async throws {
+        let result = try await evaluateWildcardClaim(path: #"["scores",null]"#, values: "[18]", claims: ["scores": [18.0]])
+        XCTAssertTrue(result.success)
+    }
+
+    func testDoesNotTruncateFractionalClaimForIntegerValue() async throws {
+        let result = try await evaluateWildcardClaim(path: #"["scores",null]"#, values: "[1]", claims: ["scores": [1.5]])
+        XCTAssertFalse(result.success)
+        XCTAssertEqual(result.queryMatches["q1"]?.failedClaims?.first?.reason, DCQLEvaluationErrorCodes.claimValueMismatch.rawValue)
+    }
+
+    func testRejectsOutOfRangeDoubleClaimForIntegerValue() async throws {
+        let result = try await evaluateWildcardClaim(path: #"["scores",null]"#, values: "[1]", claims: ["scores": [1e20]])
+        XCTAssertFalse(result.success)
+        XCTAssertEqual(result.queryMatches["q1"]?.failedClaims?.first?.reason, DCQLEvaluationErrorCodes.claimValueMismatch.rawValue)
+    }
+
 }

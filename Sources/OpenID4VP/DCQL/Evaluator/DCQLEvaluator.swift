@@ -237,7 +237,7 @@ internal struct DcqlEvaluator {
                 case .int(let v):
                     // Handle potential type mismatch if the value is parsed as Double from JSON
                     if let actualInt = selectedValue as? Int { return actualInt == v }
-                    if let actualDouble = selectedValue as? Double { return Int(actualDouble) == v }
+                    if let actualDouble = selectedValue as? Double { return Int(exactly: actualDouble) == v }
                     return false
                 case .bool(let v):
                     return (selectedValue as? Bool) == v
