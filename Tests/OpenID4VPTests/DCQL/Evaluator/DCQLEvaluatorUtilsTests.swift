@@ -388,4 +388,29 @@ final class DCQLUtilsTests: XCTestCase {
             )
         }
     }
+    func testNestedWildcardsFanOutAcrossArrays() throws {
+        let nested: [String: Any] = ["degrees": [
+            ["subjects": [["name": "Math"], ["name": "Physics"]]],
+            ["subjects": [["name": "Chemistry"]]]
+        ]]
+        let result = try resolveClaimsPathPointer(path("degrees", nil, "subjects", nil, "name"), in: nested)
+        XCTAssertEqual(result as? [String], ["Math", "Physics", "Chemistry"])
+    }
+
+    func testIndexAfterWildcardSelectsFromEachArray() throws {
+        let nested: [String: Any] = ["groups": [["Math", "Physics"], [], ["Chemistry"]]]
+        let result = try resolveClaimsPathPointer(path("groups", NSNull(), 0), in: nested)
+        XCTAssertEqual(result as? [String], ["Math", "Chemistry"])
+    }
+
+    func testMissingWildcardFieldsReturnNil() throws {
+        let result = try resolveClaimsPathPointer(path("degrees", nil, "missing", "name"), in: claims)
+        XCTAssertNil(result)
+    }
+
+    func testEmptyWildcardSelectionReturnsNil() throws {
+        let result = try resolveClaimsPathPointer(path("items", nil), in: ["items": [] as [Any]])
+        XCTAssertNil(result)
+    }
+
 }
