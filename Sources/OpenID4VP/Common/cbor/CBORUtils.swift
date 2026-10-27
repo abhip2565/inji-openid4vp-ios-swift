@@ -118,3 +118,88 @@ func unwrapCbor(_ cbor: SwiftCBOR.CBOR) -> Any? {
         return nil
     }
 }
+
+// MARK: - Deterministic encoding and exact decoding
+
+// CBOR initial byte: top 3 bits = major type, low 5 bits = additional information (RFC 8949 3)
+private let cborMajorTypeArray: UInt8 = 4
+private let cborMajorTypeMap: UInt8 = 5
+private let cborMajorTypeTag: UInt8 = 6
+
+/// Encodes [item] with map keys sorted bytewise by their encoding and integers and lengths in
+/// their shortest form, so the same item always gives the same bytes. SwiftCBOR writes maps in
+/// dictionary order, which changes from run to run, so containers and tags are written here and
+/// only leaf values are left to SwiftCBOR.
+func encodeCanonicalCbor(_ item: CBOR) -> [UInt8] {
+    switch item {
+    case let .array(elements):
+        return cborHeader(majorType: cborMajorTypeArray, argument: UInt64(elements.count))
+            + elements.flatMap { element in encodeCanonicalCbor(element) }
+    case let .map(entries):
+        let sortedEntries = entries
+            .map { entry in (key: encodeCanonicalCbor(entry.key), value: encodeCanonicalCbor(entry.value)) }
+            .sorted { first, second in first.key.lexicographicallyPrecedes(second.key) }
+        return cborHeader(majorType: cborMajorTypeMap, argument: UInt64(entries.count))
+            + sortedEntries.flatMap { entry in entry.key + entry.value }
+    case let .tagged(tag, content):
+        return cborHeader(majorType: cborMajorTypeTag, argument: tag.rawValue) + encodeCanonicalCbor(content)
+    default:
+        return item.encode()
+    }
+}
+
+/// An initial byte plus the argument in its shortest form.
+private func cborHeader(majorType: UInt8, argument: UInt64) -> [UInt8] {
+    let initialByte = majorType << 5
+    switch argument {
+    case 0...23: return [initialByte | UInt8(argument)]
+    case 0...0xff: return [initialByte | 24, UInt8(argument)]
+    case 0...0xffff: return [initialByte | 25] + bigEndianBytes(argument, count: 2)
+    case 0...0xffff_ffff: return [initialByte | 26] + bigEndianBytes(argument, count: 4)
+    default: return [initialByte | 27] + bigEndianBytes(argument, count: 8)
+    }
+}
+
+private func bigEndianBytes(_ value: UInt64, count: Int) -> [UInt8] {
+    (0..<count).reversed().map { index in UInt8(truncatingIfNeeded: value >> (8 * UInt64(index))) }
+}
+
+/// Decodes [bytes] as exactly one CBOR item; nothing may follow it.
+func decodeSingleCborItem(_ bytes: [UInt8], className: String) throws -> CBOR {
+    // a class, so the decoder reads from this same instance and its count can be checked after
+    let stream = CountingInputStream(bytes)
+    let decoder = CBORDecoder(stream: stream)
+    let item: CBOR?
+    do {
+        item = try decoder.decodeItem()
+    } catch {
+        throw InvalidData(message: "Not valid CBOR: \(error)", className: className)
+    }
+    guard let decoded = item else { throw InvalidData(message: "No CBOR item found", className: className) }
+    guard stream.consumed == bytes.count else {
+        throw InvalidData(message: "Bytes follow the CBOR item", className: className)
+    }
+    return decoded
+}
+
+/// A CBOR input stream that counts what the decoder took, so trailing bytes can be detected.
+private final class CountingInputStream: CBORInputStream {
+    private let bytes: [UInt8]
+    private(set) var consumed = 0
+
+    init(_ bytes: [UInt8]) {
+        self.bytes = bytes
+    }
+
+    func popByte() throws -> UInt8 {
+        guard consumed < bytes.count else { throw CBORError.unfinishedSequence }
+        defer { consumed += 1 }
+        return bytes[consumed]
+    }
+
+    func popBytes(_ n: Int) throws -> ArraySlice<UInt8> {
+        guard n >= 0, bytes.count - consumed >= n else { throw CBORError.unfinishedSequence }
+        defer { consumed += n }
+        return bytes[consumed..<(consumed + n)]
+    }
+}

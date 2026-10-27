@@ -32,8 +32,7 @@ struct UnsignedMdocVPTokenBuilder: UnsignedVPTokenBuilder {
         var uuidToDeviceAuthenticationBytes: [String: String] = [:]
         var unsignedVPTokens: [UnsignedVPToken] = []
         
-        let sessionTranscript = try getSessionTranscript()
-        let deviceNamespacesBytes = getDeviceNamespacesBytes()
+        let sessionTranscript = cborEncode(try getSessionTranscript())
         
         var existingDocTypes: Set<String> = []
         
@@ -42,7 +41,6 @@ struct UnsignedMdocVPTokenBuilder: UnsignedVPTokenBuilder {
             let (_, _, unsignedVPToken) = try await buildPayloadAndUnsignedVPToken(
                 with: credentialInputDescriptorMapping.credential,
                 sessionTranscript: sessionTranscript,
-                deviceNamespacesBytes: deviceNamespacesBytes,
                 uuidToDeviceAuthenticationBytes: &uuidToDeviceAuthenticationBytes,
                 updateIdentifier: { identifier in
                     credentialInputDescriptorMappings[index].identifier = identifier
@@ -63,8 +61,7 @@ struct UnsignedMdocVPTokenBuilder: UnsignedVPTokenBuilder {
         var uuidToDeviceAuthenticationBytes: [String: String] = [:]
         var unsignedVPTokens: [UnsignedVPToken] = []
         
-        let sessionTranscript = try getSessionTranscript()
-        let deviceNamespacesBytes = getDeviceNamespacesBytes()
+        let sessionTranscript = cborEncode(try getSessionTranscript())
         var existingDocTypes: Set<String> = []
         
         for index in 0..<credentialToCredentialQueryIdMappings.count {
@@ -72,7 +69,6 @@ struct UnsignedMdocVPTokenBuilder: UnsignedVPTokenBuilder {
             let (_, _, unsignedVPToken) = try await buildPayloadAndUnsignedVPToken(
                 with: credentialToCredentialQueryIdMapping.credential,
                 sessionTranscript: sessionTranscript,
-                deviceNamespacesBytes: deviceNamespacesBytes,
                 uuidToDeviceAuthenticationBytes: &uuidToDeviceAuthenticationBytes,
                 updateIdentifier: { identifier in
                     credentialToCredentialQueryIdMappings[index].identifier = identifier
@@ -100,14 +96,8 @@ struct UnsignedMdocVPTokenBuilder: UnsignedVPTokenBuilder {
         return sessionTranscript
     }
     
-    private func getDeviceNamespacesBytes() -> CBOR {
-        let deviceNamespaces = CBOR.map([:])
-        return wrapCBORInputWithTag24(input: deviceNamespaces)!
-    }
-    
     private func buildPayloadAndUnsignedVPToken(with credential: AnyCodable,
-                                                sessionTranscript: CBOR,
-                                                deviceNamespacesBytes: CBOR,
+                                                sessionTranscript: [UInt8],
                                                 uuidToDeviceAuthenticationBytes: inout [String: String],
                                                 updateIdentifier: (String) -> Void,
                                                 existingDocTypes: inout Set<String>
@@ -125,17 +115,10 @@ struct UnsignedMdocVPTokenBuilder: UnsignedVPTokenBuilder {
         }
         existingDocTypes.insert(docTypeString)
         
-        let deviceAuthentication = CBOR.array([
-            .utf8String("DeviceAuthentication"),
-            sessionTranscript,
-            .utf8String(docTypeString),
-            deviceNamespacesBytes
-        ])
-        
-        let wrapped = wrapCBORInputWithTag24(input: deviceAuthentication)!
-        let deviceAuthenticationBytes = cborEncode(wrapped)
         let (keyRef, alg) = try resolveMdocKeyAndAlg(mdocCredential)
-        let signature1Bytes = try CoseSignature1Utils.createSignature1Structure(payload: deviceAuthenticationBytes, alg: alg)
+        let signature1Bytes = try MdocDeviceResponseUtils.deviceAuthenticationDataToSign(
+            sessionTranscript: sessionTranscript, docType: docTypeString, alg: alg
+        )
         let dataToSign = signature1Bytes.map { String(format: "%02x", $0) }.joined()
         let identifier = UUIDGenerator.generateUUID()
         

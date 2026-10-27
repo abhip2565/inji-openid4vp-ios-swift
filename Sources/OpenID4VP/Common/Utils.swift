@@ -203,8 +203,15 @@ func resolveMdocKeyAndAlg(_ mdocCredential: String) throws -> (keyRef: String, a
     }
     
     
-    guard case let CBOR.map(msoMap)? = decoded,
-          let deviceKeyInfo = msoMap[CBOR.utf8String("deviceKeyInfo")],
+    guard case let CBOR.map(msoMap)? = decoded else {
+        throw InvalidData(message: "deviceKey missing", className: "OpenID4VPUtils")
+    }
+    return try extractKeyReferenceAndAlg(fromMso: msoMap)
+}
+
+/// The holder key reference (base64url COSE_Key) and the signing algorithm of an MSO's deviceKey.
+func extractKeyReferenceAndAlg(fromMso msoMap: [CBOR: CBOR]) throws -> (keyRef: String, alg: String) {
+    guard let deviceKeyInfo = msoMap[CBOR.utf8String("deviceKeyInfo")],
           case let CBOR.map(deviceKeyInfoMap) = deviceKeyInfo,
           let deviceKey = deviceKeyInfoMap[CBOR.utf8String("deviceKey")],
           case let CBOR.map(deviceKeyMap) = deviceKey else {

@@ -105,28 +105,17 @@ class MdocVPTokenBuilder : VPTokenBuilder {
         }
 
         let (docType, issuerSigned) = try getMdocDocTypeAndIssuerSigned(from: credential, className: className)
-        var document = CBOR.map([
-            CBOR.utf8String("issuerSigned"): issuerSigned,
-            CBOR.utf8String("docType"): docType,
-        ])
-
+        guard case let .utf8String(docTypeString) = docType else {
+            throw InvalidData(message: "docType missing or invalid in credential", className: className)
+        }
         let (_, alg) = try resolveMdocKeyAndAlg(mdocCredential)
-        
-        let deviceAuthSignature = DeviceAuthentication(signature: vpTokenSigningResult.signedData, algorithm: alg)
-        
-        let deviceSignature = try createDeviceSignature(deviceAuthSignature)
-        
-        let deviceAuth = CBOR.map([.utf8String("deviceSignature"): deviceSignature])
-        let deviceNamespacesBytes = wrapCBORInputWithTag24(input: CBOR.map([:]))!
-        let deviceSigned = CBOR.map([
-            .utf8String("deviceAuth"): deviceAuth,
-            .utf8String("nameSpaces"): deviceNamespacesBytes,
-        ])
-        
-        // attach deviceSigned to cborCredential
-        document[CBOR.utf8String("deviceSigned")] = deviceSigned
-        
-        return document
+
+        return try MdocDeviceResponseUtils.document(
+            docType: docTypeString,
+            issuerSigned: issuerSigned,
+            alg: alg,
+            signature: [UInt8](vpTokenSigningResult.signedData)
+        )
     }
     
     private func buildMdocVPToken(documents: CBOR) throws -> MdocVPToken {
@@ -137,13 +126,5 @@ class MdocVPTokenBuilder : VPTokenBuilder {
         ])
         let encodedDeviceResponseBase64Url = Data(cborEncode(deviceResponse)).toBase64UrlEncoded()
         return MdocVPToken(base64EncodedDeviceResponse: encodedDeviceResponseBase64Url)
-    }
-    
-    private func createDeviceSignature(_ deviceAuthentication: DeviceAuthentication) throws -> CBOR {
-        let rawSignatureBytes = [UInt8](deviceAuthentication.signature)
-        return try CoseSignature1Utils.createCoseSign1(
-            signingAlgorithm: deviceAuthentication.algorithm,
-            signature: rawSignatureBytes
-        )
     }
 }
