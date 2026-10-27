@@ -33,7 +33,8 @@ let package = Package(
             dependencies: [
                 "OpenID4VP", "jose-swift", "Alamofire", "SwiftCBOR", "Base58Swift",
                 .product(name: "MultiformatsKit", package: "multiformatskit")
-            ]
+            ],
+            resources: [.copy("Resources/mdoc")]
         )
     ]
 )
