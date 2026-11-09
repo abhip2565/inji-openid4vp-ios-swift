@@ -119,8 +119,6 @@ func unwrapCbor(_ cbor: SwiftCBOR.CBOR) -> Any? {
     }
 }
 
-// MARK: - Deterministic encoding and exact decoding
-
 // CBOR initial byte: top 3 bits = major type, low 5 bits = additional information (RFC 8949 3)
 private let cborMajorTypeArray: UInt8 = 4
 private let cborMajorTypeMap: UInt8 = 5
@@ -148,7 +146,6 @@ func encodeCanonicalCbor(_ item: CBOR) -> [UInt8] {
     }
 }
 
-/// An initial byte plus the argument in its shortest form.
 private func cborHeader(majorType: UInt8, argument: UInt64) -> [UInt8] {
     let initialByte = majorType << 5
     switch argument {

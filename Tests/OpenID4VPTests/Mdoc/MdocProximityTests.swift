@@ -39,8 +39,6 @@ final class MdocProximityTests: XCTestCase {
         }
     }
 
-    // MARK: the response
-
     func testBuildsADeviceResponseWithVersion1_0TheDocumentAndStatus0() async throws {
         let response = try await build([TestMdocs.credential(docType: mdl, familyName)])
 
@@ -140,8 +138,6 @@ final class MdocProximityTests: XCTestCase {
         XCTAssertEqual(responses.count, 1)
     }
 
-    // MARK: signing
-
     func testSignIsAskedOncePerDocumentWithTheMsoDeviceKeyItsAlgorithmAndTheDeviceAuthenticationData() async throws {
         var asked: [MdocSigningInput] = []
         let fixed = signature
@@ -177,8 +173,6 @@ final class MdocProximityTests: XCTestCase {
 
         XCTAssertTrue(failure is InvalidData, "\(String(describing: failure))")
     }
-
-    // MARK: checks on what the wallet passed in
 
     func testAnItemWhoseDigestDoesNotMatchTheMsoIsRejectedBeforeAnythingIsSigned() async {
         // the wallet re-encoded or changed an item while removing the fields not to share

@@ -8,14 +8,9 @@ private let statusOk: UInt64 = 0
 // ES256 (r ‖ s on P-256) and EdDSA (Ed25519) signatures are both 64 bytes
 private let signatureBytes = 64
 
-/// Builds the answer to an in-person (ISO/IEC 18013-5 proximity) mdoc request: the DeviceResponse
-/// (clause 8.3.2.1.2.2), which the wallet hands to the transport (Tuvali) as it is.
-///
-/// The wallet passes each credential with only the data elements to share already in it; nothing
-/// is filtered here. Each element must still be exactly as issued, so a credential's items are
-/// checked against their digests in the MSO before that credential is signed. For each document the wallet is asked, through
-/// the sign callback, to sign the mdoc authentication data (clause 9.1.3) with the credential's
-/// device key.
+/// Builds an ISO/IEC 18013-5 DeviceResponse (8.3.2.1.2.2). Credentials must already be
+/// filtered without altering issued item bytes. Retained MSO digests are validated before
+/// the wallet signs DeviceAuthentication with each credential's device key (9.1.3).
 public enum MdocProximity {
 
     /// [sessionTranscriptBytes] are the SessionTranscriptBytes of the session (#6.24 around the

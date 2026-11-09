@@ -98,8 +98,6 @@ func getMdocDocTypeAndIssuerSigned(from credential: AnyCodable, className: Strin
     return (docType, issuerSigned)
 }
 
-// MARK: - Reading and checking a credential for in-person presentation
-
 private let tagEncodedCbor: UInt64 = 24
 
 enum MdocCredentialUtils {
@@ -168,7 +166,6 @@ enum MdocCredentialUtils {
         return mso
     }
 
-    /// The digestID and elementIdentifier of one IssuerSignedItemBytes (tag 24).
     private static func readIssuerSignedItem(_ item: CBOR, nameSpace: String, className: String) throws -> (UInt64, String) {
         guard case let .tagged(tag, .byteString(bytes)) = item, tag.rawValue == tagEncodedCbor else {
             throw InvalidData(message: "An item in \(nameSpace) is not IssuerSignedItemBytes (tag 24)", className: className)
