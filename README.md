@@ -362,6 +362,40 @@ The library provides the following methods organized into different workflow pat
 
 For detailed implementation guidance including wallet configuration, VP construction details, and step-by-step integration workflows, see the [Integration Guide](./docs/integration-guide.md).
 
+#### In-person mdoc presentation (ISO/IEC 18013-5)
+
+For proximity sharing there is no authorization request and no verifier URL: the session runs over a
+transport such as Bluetooth (for example Tuvali's `MdocPresenter`), and this library only builds the
+answer (`DeviceResponse`).
+
+| Method                                         | Purpose                                                                                                     | Returns                    |
+|------------------------------------------------|-------------------------------------------------------------------------------------------------------------|----------------------------|
+| **`MdocProximity.buildDeviceResponse()`**      | Builds a CBOR `DeviceResponse` for the given session, asking the wallet to sign device authentication.      | `Data` (CBOR DeviceResponse) |
+
+```swift
+let deviceResponse = try await MdocProximity.buildDeviceResponse(
+    sessionTranscriptBytes: request.sessionTranscript, // from the transport, unchanged
+    credentials: approvedMdocs,                        // base64url IssuerSigned, one per docType
+    sign: { input in
+        // input.holderKeyReference, input.signatureAlgorithm, input.dataToSign
+        try await wallet.sign(input.dataToSign, keyReference: input.holderKeyReference)
+    }
+)
+```
+
+- `sessionTranscriptBytes` are the SessionTranscriptBytes (tag 24 around the SessionTranscript)
+  exactly as the transport produced them; they are never decoded and re-encoded.
+- `credentials` are `IssuerSigned` mdocs as `[Data]` (CBOR) or `[String]` (base64url). Reduce each
+  to the approved elements before calling; issuer-signed items and `issuerAuth` are kept byte for
+  byte, and every kept item is checked against its MSO digest.
+- `sign` receives one `MdocSigningInput` per document and must return the raw signature.
+  An error thrown by `sign` fails the call unchanged.
+- The response has `version` `"1.0"`, the documents, and `status` 0. Send it through the transport;
+  nothing is sent by this library.
+- Throws `InvalidData` when a credential is not valid CBOR or base64url, its MSO has no docType,
+  a kept item does not match its digest, two credentials share a docType, or a signature has the
+  wrong length.
+
 ---
 
 # Limitations
