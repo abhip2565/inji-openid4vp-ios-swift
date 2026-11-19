@@ -198,6 +198,31 @@ final class MdocProximityTests: XCTestCase {
         XCTAssertTrue(invalidData?.message.contains("EdDSA signature must be 114 raw bytes (not DER), got 64") == true)
     }
 
+    func testADeviceKeyAlgorithmTooLargeForIntIsRejectedInsteadOfCrashing() async {
+        // alg UInt64.max does not fit in Int
+        let deviceKey: CBOR = .map([1: 2, 3: .unsignedInt(UInt64.max), -1: 1])
+        let credential = TestMdocs.credential(docType: mdl, deviceKey: deviceKey, familyName)
+
+        let failure = await error { _ = try await self.build([credential]) }
+
+        XCTAssertTrue(failure is InvalidData, "\(String(describing: failure))")
+    }
+
+    func testAnEdDsaDeviceKeyCurveTooLargeForIntIsRejectedBeforeAnythingIsSigned() async {
+        // crv UInt64.max does not fit in Int
+        let credential = TestMdocs.credential(docType: mdl, deviceKey: TestMdocs.edDsaDeviceKey(curve: UInt64.max, keyBytes: 32), familyName)
+        var signed = false
+        let fixed = signature
+
+        let failure = await error { _ = try await self.build([credential]) { _ in
+            signed = true
+            return fixed
+        } }
+
+        XCTAssertTrue(failure is InvalidData, "\(String(describing: failure))")
+        XCTAssertFalse(signed)
+    }
+
     func testAnEdDsaDeviceKeyOnAnUnknownCurveIsRejectedBeforeAnythingIsSigned() async {
         // crv 99 is not an EdDSA curve
         let credential = TestMdocs.credential(docType: mdl, deviceKey: TestMdocs.edDsaDeviceKey(curve: 99, keyBytes: 32), familyName)

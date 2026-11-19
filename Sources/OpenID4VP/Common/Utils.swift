@@ -265,10 +265,18 @@ func deviceKeyCurve(fromMso mso: [CBOR: CBOR]) -> Int? {
     return try? readCoseInt(curve)
 }
 
+private func coseIntegerTooLarge() -> InvalidData {
+    InvalidData(message: "COSE integer does not fit in Int", className: "OpenID4VPUtils")
+}
+
 func readCoseInt(_ cbor: CBOR) throws -> Int {
     switch cbor {
-    case .unsignedInt(let v): return Int(v)
-    case .negativeInt(let v): return -1 - Int(v)
+    case .unsignedInt(let v):
+        guard let value = Int(exactly: v) else { throw coseIntegerTooLarge() }
+        return value
+    case .negativeInt(let v):
+        guard let magnitude = Int(exactly: v) else { throw coseIntegerTooLarge() }
+        return -1 - magnitude
     default:
         throw InvalidData(message: "Invalid COSE integer type", className: "OpenID4VPUtils")
     }
