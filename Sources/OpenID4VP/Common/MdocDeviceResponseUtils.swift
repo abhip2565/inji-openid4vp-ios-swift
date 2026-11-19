@@ -15,12 +15,13 @@ internal enum MdocDeviceResponseUtils {
     /// reader rebuilds these bytes from its own copy of the transcript, so they must not be decoded and
     /// re-encoded. DeviceNameSpaces is always empty, as Inji returns no device-signed data elements.
     static func deviceAuthenticationDataToSign(sessionTranscript: [UInt8], docType: String, alg: String) throws -> [UInt8] {
+        // written byte by byte so the transcript stays exactly as given: 0x84 starts a 4-item array
         let deviceAuthentication = [arrayOfFour]
             + CBOR.utf8String("DeviceAuthentication").encode()
             + sessionTranscript
             + CBOR.utf8String(docType).encode()
             + emptyDeviceNameSpacesBytes().encode()
-        let deviceAuthenticationBytes = CBOR.tagged(CBOR.Tag(rawValue: tagEncodedCbor), .byteString(deviceAuthentication)).encode()
+        let deviceAuthenticationBytes = wrapEncodedCBORWithTag24(deviceAuthentication).encode()
         return try CoseSignature1Utils.createSignature1Structure(payload: deviceAuthenticationBytes, alg: alg)
     }
 
@@ -58,6 +59,6 @@ internal enum MdocDeviceResponseUtils {
 
     /// DeviceNameSpacesBytes = #6.24(bstr .cbor {}): no device-signed data elements.
     private static func emptyDeviceNameSpacesBytes() -> CBOR {
-        .tagged(CBOR.Tag(rawValue: tagEncodedCbor), .byteString(CBOR.map([:]).encode()))
+        wrapEncodedCBORWithTag24(CBOR.map([:]).encode())
     }
 }

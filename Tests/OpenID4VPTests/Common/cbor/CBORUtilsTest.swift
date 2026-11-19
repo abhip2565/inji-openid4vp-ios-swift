@@ -6,6 +6,16 @@ final class CBORUtilsTests: XCTestCase {
     
     /// decodeCBOR Tests
     
+    func testWrapEncodedCBORWithTag24KeepsTheBytesExactlyAsGiven() {
+        // an array of 3 with its count in the long form (98 03), which re-encoding would shorten to 83
+        let encoded: [UInt8] = [0x98, 0x03, 0xF6, 0xF6, 0xF6]
+
+        let tagged = wrapEncodedCBORWithTag24(encoded).encode()
+
+        // tag 24, then a byte string of length 5, then the bytes unchanged
+        XCTAssertEqual(tagged, [0xD8, 0x18, 0x45] + encoded)
+    }
+
     func testDecodeCBOR_ValidInput() {
         // Simple string encoded as CBOR and then base64URL
         let validBase64 = "o2F4AWF5AmF6Aw==" // {"x": 1, "y": 2, "z": 3} in CBOR

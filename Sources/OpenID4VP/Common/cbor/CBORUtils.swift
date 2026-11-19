@@ -34,6 +34,11 @@ func wrapCBORInputWithTag24(input: CBOR) -> CBOR? {
     return cborTaggedValue
 }
 
+// creates #6.24 (bstr) for bytes that are already encoded CBOR and must stay exactly as given
+func wrapEncodedCBORWithTag24(_ encodedCbor: [UInt8]) -> CBOR {
+    .tagged(CBOR.Tag(rawValue: 24), .byteString(encodedCbor))
+}
+
 internal func toCBORArray(_ input: [CBOR]) -> CBOR {
     return CBOR.array(input.map { ($0) })
 }
