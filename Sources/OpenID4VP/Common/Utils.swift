@@ -10,6 +10,7 @@ private let COSE_ALG_EDDSA: Int = -8
 // COSE curve identifiers (RFC 8152 / COSE Keys)
 private let COSE_CRV_P256: Int = 1
 private let COSE_CRV_ED25519: Int = 6
+private let COSE_CRV_ED448: Int = 7
 
 // CBOR tag identifiers (RFC 7049 / CBOR Tags)
 private let CBOR_TAG_ENCODED_CBOR: Int = 24
@@ -245,6 +246,23 @@ func extractKeyReferenceAndAlg(fromMso msoMap: [CBOR: CBOR]) throws -> (keyRef: 
     default:
         throw InvalidData(message: "Unsupported crv \(crv)", className: "OpenID4VPUtils")
     }
+}
+
+// raw r ‖ s on P-256; Ed448 signatures are longer than Ed25519 ones
+func rawSignatureLength(algorithm: String, mso: [CBOR: CBOR]) -> Int? {
+    switch (algorithm, deviceKeyCurve(fromMso: mso)) {
+    case ("ES256", _): return 64
+    case ("EdDSA", COSE_CRV_ED25519): return 64
+    case ("EdDSA", COSE_CRV_ED448): return 114
+    default: return nil
+    }
+}
+
+func deviceKeyCurve(fromMso mso: [CBOR: CBOR]) -> Int? {
+    guard case let .map(deviceKeyInfo)? = mso[.utf8String("deviceKeyInfo")],
+          case let .map(deviceKey)? = deviceKeyInfo[.utf8String("deviceKey")],
+          let curve = deviceKey[.negativeInt(0)] else { return nil }
+    return try? readCoseInt(curve)
 }
 
 func readCoseInt(_ cbor: CBOR) throws -> Int {

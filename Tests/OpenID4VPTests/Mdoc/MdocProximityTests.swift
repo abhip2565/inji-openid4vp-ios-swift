@@ -176,6 +176,43 @@ final class MdocProximityTests: XCTestCase {
         XCTAssertTrue(invalidData?.message.contains("ES256 signature must be 64 raw bytes (not DER), got 71") == true)
     }
 
+    func testAnEd448DeviceKeyAcceptsA114ByteRawSignature() async throws {
+        // EdDSA (alg -8) on Ed448 (crv 7), whose signatures are 114 bytes
+        let credential = TestMdocs.credential(docType: mdl, deviceKey: TestMdocs.edDsaDeviceKey(curve: 7, keyBytes: 57), familyName)
+
+        let response = try await build([credential]) { _ in Data(repeating: 0, count: 114) }
+
+        guard case let .array(documents)? = response["documents"], case let .map(document)? = documents.first else {
+            return XCTFail("no document in \(response)")
+        }
+        XCTAssertEqual(document["docType"], .utf8String(mdl))
+    }
+
+    func testAnEd448DeviceKeyRejectsA64ByteSignatureWithTheExpectedLength() async {
+        let credential = TestMdocs.credential(docType: mdl, deviceKey: TestMdocs.edDsaDeviceKey(curve: 7, keyBytes: 57), familyName)
+
+        let failure = await error { _ = try await self.build([credential]) { _ in Data(repeating: 0, count: 64) } }
+
+        let invalidData = failure as? InvalidData
+        XCTAssertNotNil(invalidData, "\(String(describing: failure))")
+        XCTAssertTrue(invalidData?.message.contains("EdDSA signature must be 114 raw bytes (not DER), got 64") == true)
+    }
+
+    func testAnEdDsaDeviceKeyOnAnUnknownCurveIsRejectedBeforeAnythingIsSigned() async {
+        // crv 99 is not an EdDSA curve
+        let credential = TestMdocs.credential(docType: mdl, deviceKey: TestMdocs.edDsaDeviceKey(curve: 99, keyBytes: 32), familyName)
+        var signed = false
+        let fixed = signature
+
+        let failure = await error { _ = try await self.build([credential]) { _ in
+            signed = true
+            return fixed
+        } }
+
+        XCTAssertTrue(failure is InvalidData, "\(String(describing: failure))")
+        XCTAssertFalse(signed)
+    }
+
     func testAnItemWhoseDigestDoesNotMatchTheMsoIsRejectedBeforeAnythingIsSigned() async {
         // the wallet re-encoded or changed an item while removing the fields not to share
         let changed = TestElement(nameSpace: mdlNameSpace, identifier: "family_name", value: "Roe")

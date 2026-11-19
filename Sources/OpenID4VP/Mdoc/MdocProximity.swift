@@ -5,9 +5,6 @@ private let className = "MdocProximity"
 private let deviceResponseVersion = "1.0"
 private let statusOk: UInt64 = 0
 
-// raw signature length for each supported device key algorithm: r ‖ s on P-256, and Ed25519
-private let signatureBytesByAlgorithm = ["ES256": 64, "EdDSA": 64]
-
 /// Builds an ISO/IEC 18013-5 DeviceResponse (8.3.2.1.2.2). Credentials must already be
 /// filtered without altering issued item bytes. Retained MSO digests are validated before
 /// the wallet signs DeviceAuthentication with each credential's device key (9.1.3).
@@ -41,8 +38,11 @@ public enum MdocProximity {
             }
             let (holderKeyReference, algorithm) = try extractKeyReferenceAndAlg(fromMso: mso)
 
-            guard let expectedBytes = signatureBytesByAlgorithm[algorithm] else {
-                throw InvalidData(message: "Unsupported device key algorithm \(algorithm)", className: className)
+            guard let expectedBytes = rawSignatureLength(algorithm: algorithm, mso: mso) else {
+                throw InvalidData(
+                    message: "Unsupported device key: \(algorithm) on curve \(deviceKeyCurve(fromMso: mso).map(String.init) ?? "none")",
+                    className: className
+                )
             }
 
             let dataToSign = try MdocDeviceResponseUtils.deviceAuthenticationDataToSign(

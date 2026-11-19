@@ -55,12 +55,17 @@ struct TestElement {
 /// Builds mdoc credentials for tests: IssuerSigned with an MSO whose digests match the items, a
 /// P-256 deviceKey and a placeholder issuer signature (OVP does not check the issuer signature).
 enum TestMdocs {
-    private static let deviceKey: CBOR = .map([
+    static let p256DeviceKey: CBOR = .map([
         1: 2,
         -1: 1,
         -2: .byteString([UInt8](repeating: 1, count: 32)),
         -3: .byteString([UInt8](repeating: 2, count: 32)),
     ])
+
+    /// An OKP device key declaring alg -8 (EdDSA) on `curve`: 6 is Ed25519, 7 is Ed448.
+    static func edDsaDeviceKey(curve: UInt64, keyBytes: Int) -> CBOR {
+        .map([1: 1, 3: -8, -1: .unsignedInt(curve), -2: .byteString([UInt8](repeating: 3, count: keyBytes))])
+    }
 
     static func issuerSignedItem(digestId: UInt64, _ element: TestElement) -> CBOR {
         let item: CBOR = .map([
@@ -77,6 +82,7 @@ enum TestMdocs {
         docType: String,
         _ elements: [TestElement],
         digestAlgorithm: String = "SHA-256",
+        deviceKey: CBOR = p256DeviceKey,
         items: (([String: [CBOR]]) -> [String: [CBOR]])? = nil
     ) -> CBOR {
         var generated: [String: [CBOR]] = [:]
@@ -111,8 +117,8 @@ enum TestMdocs {
         return .map(["nameSpaces": .map(nameSpaces), "issuerAuth": issuerAuth])
     }
 
-    static func credential(docType: String, _ elements: TestElement...) -> Data {
-        Data(encodeCanonicalCbor(issuerSigned(docType: docType, elements)))
+    static func credential(docType: String, deviceKey: CBOR = p256DeviceKey, _ elements: TestElement...) -> Data {
+        Data(encodeCanonicalCbor(issuerSigned(docType: docType, elements, deviceKey: deviceKey)))
     }
 
     static func digestId(of item: CBOR) -> UInt64 {
