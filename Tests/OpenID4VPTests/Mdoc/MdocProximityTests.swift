@@ -176,16 +176,22 @@ final class MdocProximityTests: XCTestCase {
         XCTAssertTrue(invalidData?.message.contains("ES256 signature must be 64 raw bytes (not DER), got 71") == true)
     }
 
-    func testAnEd448DeviceKeyAcceptsA114ByteRawSignature() async throws {
+    func testAnEd448DeviceKeyIsSignedWithItsKeyReferenceAndTheResponseHoldsThe114ByteSignature() async throws {
         // EdDSA (alg -8) on Ed448 (crv 7), whose signatures are 114 bytes
-        let credential = TestMdocs.credential(docType: mdl, deviceKey: TestMdocs.edDsaDeviceKey(curve: 7, keyBytes: 57), familyName)
+        let deviceKey = TestMdocs.edDsaDeviceKey(curve: 7, keyBytes: 57)
+        let credential = TestMdocs.credential(docType: mdl, deviceKey: deviceKey, familyName)
+        let ed448Signature = Data((0..<114).map { UInt8($0) })
+        var keyReference: String?
 
-        let response = try await build([credential]) { _ in Data(repeating: 0, count: 114) }
-
-        guard case let .array(documents)? = response["documents"], case let .map(document)? = documents.first else {
-            return XCTFail("no document in \(response)")
+        let response = try await build([credential]) { input in
+            keyReference = input.holderKeyReference
+            return ed448Signature
         }
-        XCTAssertEqual(document["docType"], .utf8String(mdl))
+
+        let referencedKey = try XCTUnwrap(Data(base64UrlEncoded: try XCTUnwrap(keyReference)))
+        XCTAssertEqual(try CBOR.decode([UInt8](referencedKey)), deviceKey)
+        let sign1 = try XCTUnwrap(response[text: "documents"].items.first)[text: "deviceSigned"][text: "deviceAuth"][text: "deviceSignature"].items
+        XCTAssertEqual(sign1.last, .byteString([UInt8](ed448Signature)))
     }
 
     func testAnEd448DeviceKeyRejectsA64ByteSignatureWithTheExpectedLength() async {
