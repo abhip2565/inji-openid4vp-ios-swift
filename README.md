@@ -386,8 +386,7 @@ let deviceResponse = try await MdocProximity.buildDeviceResponse(
 - `sessionTranscriptBytes` are the SessionTranscriptBytes (tag 24 around the SessionTranscript)
   exactly as the transport produced them; they are never decoded and re-encoded.
 - `credentials` are `IssuerSigned` mdocs as `[Data]` (CBOR) or `[String]` (base64url). Reduce each
-  to the approved elements before calling; issuer-signed items and `issuerAuth` are kept byte for
-  byte, and every kept item is checked against its MSO digest.
+  to the approved elements before calling; every kept item is checked against its MSO digest.
 - `sign` receives one `MdocSigningInput` per document and must return the raw signature.
   An error thrown by `sign` fails the call unchanged.
 - The response has `version` `"1.0"`, the documents, and `status` 0. Send it through the transport;
