@@ -165,13 +165,15 @@ final class MdocProximityTests: XCTestCase {
         XCTAssertTrue(failure is BiometricPromptCancelled, "\(String(describing: failure))")
     }
 
-    func testASignatureThatIsNot64RawBytesIsRejected() async {
+    func testAnES256SignatureThatIsNot64RawBytesIsRejectedWithTheExpectedLength() async {
         // a DER-encoded ECDSA signature is 70 to 72 bytes; COSE needs raw r and s
         let failure = await error { _ = try await self.build([TestMdocs.credential(docType: self.mdl, self.familyName)]) { _ in
             Data(repeating: 0, count: 71)
         } }
 
-        XCTAssertTrue(failure is InvalidData, "\(String(describing: failure))")
+        let invalidData = failure as? InvalidData
+        XCTAssertNotNil(invalidData, "\(String(describing: failure))")
+        XCTAssertTrue(invalidData?.message.contains("ES256 signature must be 64 raw bytes (not DER), got 71") == true)
     }
 
     func testAnItemWhoseDigestDoesNotMatchTheMsoIsRejectedBeforeAnythingIsSigned() async {

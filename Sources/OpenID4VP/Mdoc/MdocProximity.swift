@@ -5,8 +5,8 @@ private let className = "MdocProximity"
 private let deviceResponseVersion = "1.0"
 private let statusOk: UInt64 = 0
 
-// ES256 (r ‖ s on P-256) and EdDSA (Ed25519) signatures are both 64 bytes
-private let signatureBytes = 64
+// raw signature length for each supported device key algorithm: r ‖ s on P-256, and Ed25519
+private let signatureBytesByAlgorithm = ["ES256": 64, "EdDSA": 64]
 
 /// Builds an ISO/IEC 18013-5 DeviceResponse (8.3.2.1.2.2). Credentials must already be
 /// filtered without altering issued item bytes. Retained MSO digests are validated before
@@ -41,15 +41,19 @@ public enum MdocProximity {
             }
             let (holderKeyReference, algorithm) = try extractKeyReferenceAndAlg(fromMso: mso)
 
+            guard let expectedBytes = signatureBytesByAlgorithm[algorithm] else {
+                throw InvalidData(message: "Unsupported device key algorithm \(algorithm)", className: className)
+            }
+
             let dataToSign = try MdocDeviceResponseUtils.deviceAuthenticationDataToSign(
                 sessionTranscript: sessionTranscript, docType: docType, alg: algorithm
             )
             let signature = try await sign(MdocSigningInput(
                 holderKeyReference: holderKeyReference, signatureAlgorithm: algorithm, dataToSign: Data(dataToSign)
             ))
-            guard signature.count == signatureBytes else {
+            guard signature.count == expectedBytes else {
                 throw InvalidData(
-                    message: "\(algorithm) signature must be \(signatureBytes) raw bytes, got \(signature.count)",
+                    message: "\(algorithm) signature must be \(expectedBytes) raw bytes (not DER), got \(signature.count)",
                     className: className
                 )
             }
