@@ -43,7 +43,7 @@ internal enum MdocDeviceResponseUtils {
 
     /// The encoded SessionTranscript inside SessionTranscriptBytes (#6.24(bstr .cbor SessionTranscript),
     /// clause 9.1.5.1), to be passed to [deviceAuthenticationDataToSign] as it is. Anything other than
-    /// exactly one tag 24 byte string is rejected.
+    /// exactly one tag 24 byte string holding one 3-item array is rejected.
     static func sessionTranscriptFrom(_ sessionTranscriptBytes: [UInt8], className: String) throws -> [UInt8] {
         let item: CBOR
         do {
@@ -53,6 +53,10 @@ internal enum MdocDeviceResponseUtils {
         }
         guard case let .tagged(tag, .byteString(transcript)) = item, tag.rawValue == tagEncodedCbor else {
             throw InvalidData(message: "Session transcript bytes must be one tag 24 byte string", className: className)
+        }
+        guard case let .array(transcriptItems) = try decodeSingleCborItem(transcript, className: className),
+              transcriptItems.count == 3 else {
+            throw InvalidData(message: "Session transcript must be one 3-item array", className: className)
         }
         return transcript
     }

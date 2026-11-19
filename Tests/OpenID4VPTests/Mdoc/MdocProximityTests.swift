@@ -303,6 +303,39 @@ final class MdocProximityTests: XCTestCase {
         XCTAssertTrue(failure is InvalidData, "\(String(describing: failure))")
     }
 
+    func testAnEmptySessionTranscriptInsideTag24IsRejectedBeforeAnythingIsSigned() async {
+        let empty = Data(CBOR.tagged(CBOR.Tag(rawValue: 24), .byteString([])).encode())
+        var signed = false
+        let fixed = signature
+
+        let failure = await error {
+            _ = try await self.build([TestMdocs.credential(docType: self.mdl, self.familyName)], sessionTranscriptBytes: empty) { _ in
+                signed = true
+                return fixed
+            }
+        }
+
+        XCTAssertTrue(failure is InvalidData, "\(String(describing: failure))")
+        XCTAssertFalse(signed)
+    }
+
+    func testASessionTranscriptOfTwoCborItemsIsRejectedBeforeAnythingIsSigned() async {
+        // 01 02: the integers 1 and 2 instead of the 3-item SessionTranscript array
+        let twoItems = Data(CBOR.tagged(CBOR.Tag(rawValue: 24), .byteString([0x01, 0x02])).encode())
+        var signed = false
+        let fixed = signature
+
+        let failure = await error {
+            _ = try await self.build([TestMdocs.credential(docType: self.mdl, self.familyName)], sessionTranscriptBytes: twoItems) { _ in
+                signed = true
+                return fixed
+            }
+        }
+
+        XCTAssertTrue(failure is InvalidData, "\(String(describing: failure))")
+        XCTAssertFalse(signed)
+    }
+
     func testSessionTranscriptBytesUnderAnotherTagThan24AreRejected() async {
         // tag 25 instead of 24 around the same transcript bytes
         let otherTag = Data(CBOR.tagged(CBOR.Tag(rawValue: 25), .byteString(sessionTranscript)).encode())
